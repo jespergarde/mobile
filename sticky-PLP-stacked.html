@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Sticky Navigation and Filters</title>
+<style>
+* { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body { overflow-x: hidden; }
+img { display: block; width: 100%; height: auto; }
+
+.nav-wrapper,
+.nav,
+.filters-wrapper,
+.filters { width: 100%; }
+
+/* The original elements always keep their place in the page. */
+.nav-wrapper,
+.filters-wrapper { position: relative; }
+
+/* Hide only the original filters once the fixed copy takes over. */
+.filters-wrapper.is-replaced { visibility: hidden; }
+
+/* A separate fixed stack avoids changing the original filters to position:fixed. */
+.fixed-stack {
+    background: #fff;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 1000;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+.fixed-stack.is-active {
+    visibility: visible;
+    pointer-events: auto;
+}
+
+.fixed-nav {
+    width: 100%;
+    max-height: 0;
+    overflow: hidden;
+    transform: translateY(-100%);
+}
+
+/* Animation is enabled only after the fixed filters are already visible. */
+.fixed-stack.can-animate .fixed-nav {
+    transition: max-height 300ms ease, transform 300ms ease;
+}
+
+.fixed-stack.nav-visible .fixed-nav {
+    max-height: var(--nav-height, 0px);
+    transform: translateY(0);
+}
+
+.fixed-filters { width: 100%; }
+
+/* Once the original filters meet the fixed copy, hand back immediately. */
+.fixed-stack.filters-released .fixed-filters {
+    display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .fixed-nav { transition: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="page">
+    <img src="stripe.png" alt="">
+
+    <div class="nav-wrapper" id="navWrapper">
+        <div class="nav">
+            <img src="nav.png" alt="">
+        </div>
+    </div>
+
+    <img src="top.png" alt="">
+
+    <div class="filters-wrapper" id="filtersWrapper">
+        <div class="filters">
+            <img src="filters.png" alt="">
+        </div>
+    </div>
+
+    <img src="list.png" alt="">
+</div>
+
+<!-- Independent fixed copies. The originals never animate or move off screen. -->
+<div class="fixed-stack" id="fixedStack" aria-hidden="true">
+    <div class="fixed-nav">
+        <img src="nav.png" alt="">
+    </div>
+    <div class="fixed-filters">
+        <img src="filters.png" alt="">
+    </div>
+</div>
+
+<script>
+const navWrapper = document.getElementById('navWrapper');
+const filtersWrapper = document.getElementById('filtersWrapper');
+const fixedStack = document.getElementById('fixedStack');
+
+let lastScrollY = window.scrollY;
+let filtersOriginalTop = 0;
+let fixedMode = false;
+let navIsVisible = false;
+let fixedFiltersActive = false;
+let lastDirection = null;
+
+function measure() {
+    document.documentElement.style.setProperty(
+        '--nav-height',
+        `${navWrapper.offsetHeight}px`
+    );
+
+    if (!fixedMode) {
+        filtersOriginalTop =
+            filtersWrapper.getBoundingClientRect().top + window.scrollY;
+    }
+}
+
+function activateFixedMode() {
+    if (fixedMode) return;
+
+    fixedMode = true;
+    navIsVisible = false;
+    fixedFiltersActive = true;
+    lastDirection = 'down';
+
+    /* The in-flow filters disappear immediately. */
+    filtersWrapper.classList.add('is-replaced');
+
+    /* The already-positioned fixed copy appears immediately at top: 0. */
+    fixedStack.classList.remove('can-animate', 'nav-visible', 'filters-released');
+    fixedStack.classList.add('is-active');
+    fixedStack.setAttribute('aria-hidden', 'false');
+
+    /* Force the non-animated initial state to paint first. */
+    void fixedStack.offsetHeight;
+
+    requestAnimationFrame(() => {
+        if (fixedMode) fixedStack.classList.add('can-animate');
+    });
+}
+
+function deactivateFixedMode() {
+    if (!fixedMode) return;
+
+    fixedMode = false;
+    navIsVisible = false;
+    fixedFiltersActive = false;
+    lastDirection = null;
+
+    fixedStack.classList.remove('is-active', 'can-animate', 'nav-visible', 'filters-released');
+    fixedStack.setAttribute('aria-hidden', 'true');
+    filtersWrapper.classList.remove('is-replaced');
+    measure();
+}
+
+function showNav() {
+    if (!fixedMode || navIsVisible) return;
+    navIsVisible = true;
+    fixedStack.classList.add('nav-visible');
+}
+
+function hideNav() {
+    if (!fixedMode || !navIsVisible) return;
+    navIsVisible = false;
+    fixedStack.classList.remove('nav-visible');
+}
+
+
+function releaseFiltersToPage() {
+    if (!fixedMode || !fixedFiltersActive) return;
+
+    fixedFiltersActive = false;
+
+    /* Both copies currently occupy the same viewport position, so the swap is invisible. */
+    filtersWrapper.classList.remove('is-replaced');
+    fixedStack.classList.add('filters-released');
+}
+
+function restoreFixedFilters() {
+    if (!fixedMode || fixedFiltersActive) return;
+
+    fixedFiltersActive = true;
+    filtersWrapper.classList.add('is-replaced');
+    fixedStack.classList.remove('filters-released');
+}
+
+function syncFiltersHandoff(direction) {
+    if (!fixedMode) return;
+
+    const originalTop = filtersWrapper.getBoundingClientRect().top;
+    const fixedTop = navIsVisible ? navWrapper.offsetHeight : 0;
+
+    /* Scrolling up: release as soon as the original filters reach the fixed row. */
+    if (direction === 'up' && fixedFiltersActive && originalTop >= fixedTop) {
+        releaseFiltersToPage();
+    }
+
+    /* Scrolling down again: restore the fixed copy as the original reaches the row. */
+    if (direction === 'down' && !fixedFiltersActive && originalTop <= fixedTop) {
+        restoreFixedFilters();
+    }
+}
+
+function handleScroll() {
+    const currentScrollY = window.scrollY;
+    const delta = currentScrollY - lastScrollY;
+
+    if (Math.abs(delta) < 1) return;
+
+    const direction = delta > 0 ? 'down' : 'up';
+
+    if (!fixedMode && currentScrollY >= filtersOriginalTop) {
+        activateFixedMode();
+    }
+
+    if (fixedMode) {
+        if (navWrapper.getBoundingClientRect().top >= 0) {
+            deactivateFixedMode();
+            lastScrollY = currentScrollY;
+            return;
+        }
+
+        if (direction !== lastDirection) {
+            if (direction === 'up') showNav();
+            else hideNav();
+            lastDirection = direction;
+        }
+
+        syncFiltersHandoff(direction);
+    }
+
+    lastScrollY = currentScrollY;
+}
+
+window.addEventListener('scroll', handleScroll, { passive: true });
+window.addEventListener('resize', measure);
+window.addEventListener('load', measure);
+measure();
+</script>
+</body>
+</html>
