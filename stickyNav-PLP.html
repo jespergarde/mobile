@@ -1,0 +1,743 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+
+    <meta charset="UTF-8">
+
+    <meta
+        name="viewport"
+        content="width=device-width, initial-scale=1.0"
+    >
+
+    <title>Sticky Navigation and Filters</title>
+
+
+    <style>
+
+        * {
+            box-sizing: border-box;
+        }
+
+
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+        }
+
+
+        body {
+            background: #fff;
+        }
+
+
+        /* =========================================
+           NORMAL PAGE IMAGES
+           ========================================= */
+
+        .page-image {
+            display: block;
+
+            width: 100%;
+            height: auto;
+        }
+
+
+        /* =========================================
+           IMAGE 3 TRIGGER
+           ========================================= */
+
+        .filters-trigger {
+            position: relative;
+        }
+
+
+        /* =========================================
+           FIXED OVERLAY
+           ========================================= */
+
+        .sticky-overlay {
+            position: fixed;
+
+            top: 0;
+            left: 0;
+
+            width: 100%;
+            max-width: 100vw;
+
+            z-index: 1000;
+
+            display: none;
+
+            overflow: visible;
+        }
+
+
+        /*
+         * Both sticky images occupy the same
+         * horizontal position.
+         */
+
+        .sticky-image {
+            position: absolute;
+
+            top: 0;
+            left: 0;
+
+            display: block;
+
+            width: 100%;
+            height: auto;
+
+            pointer-events: none;
+        }
+
+
+        /*
+         * Image 1 starts above the viewport.
+         */
+
+        .sticky-navigation {
+            transform: translateY(-100%);
+        }
+
+    </style>
+
+</head>
+
+
+<body>
+
+
+    <!-- =========================================
+         NORMAL PAGE CONTENT
+         ========================================= -->
+
+
+    <!-- IMAGE 1 — Navigation -->
+
+    <img
+        src="stripe.png"
+        class="page-image"
+        alt=""
+    >
+
+    <img
+        src="nav.png"
+        class="page-image"
+        id="navigation"
+        alt=""
+    >
+
+
+    <!-- IMAGE 2 — Page content -->
+
+    <img
+        src="image2.png"
+        class="page-image"
+        alt=""
+    >
+
+
+    <!-- IMAGE 3 — Filters -->
+
+    <div
+        class="filters-trigger"
+        id="filtersTrigger"
+    >
+
+        <img
+            src="image3.png"
+            class="page-image"
+            alt=""
+        >
+
+    </div>
+
+
+    <!-- IMAGE 4 — Remaining page -->
+
+    <img
+        src="image4.png"
+        class="page-image"
+        alt=""
+    >
+
+
+
+    <!-- =========================================
+         FIXED OVERLAY
+         ========================================= -->
+
+    <div
+        class="sticky-overlay"
+        id="stickyOverlay"
+    >
+
+        <!-- IMAGE 3 — underneath -->
+
+        <img
+            src="image3.png"
+            class="sticky-image sticky-filters"
+            id="stickyFilters"
+            style="position: relative;"
+            alt=""
+        >
+
+
+        <!-- IMAGE 1 — slides over image 3 -->
+
+        <img
+            src="nav.png"
+            class="sticky-image sticky-navigation"
+            id="stickyNavigation"
+            alt=""
+        >
+
+    </div>
+
+
+
+    <script>
+
+        /*
+         * =========================================
+         * ELEMENTS
+         * =========================================
+         */
+
+        const navigation =
+            document.getElementById("navigation");
+
+        const filtersTrigger =
+            document.getElementById("filtersTrigger");
+
+        const stickyOverlay =
+            document.getElementById("stickyOverlay");
+
+        const stickyFilters =
+            document.getElementById("stickyFilters");
+
+        const stickyNavigation =
+            document.getElementById("stickyNavigation");
+
+
+        /*
+         * =========================================
+         * STATE
+         * =========================================
+         *
+         * normal
+         * filters
+         * nav
+         * navSlidingOut
+         */
+
+        let state = "normal";
+
+
+        let lastScrollY =
+            window.scrollY;
+
+
+        let animation = null;
+
+
+        /*
+         * =========================================
+         * UPWARD SCROLL DISTANCE
+         * =========================================
+         *
+         * Navigation will only appear after
+         * 48px of cumulative upward scrolling.
+         */
+
+        let upwardDistance = 0;
+
+        const NAV_REVEAL_DISTANCE = 48;
+
+
+
+        /*
+         * =========================================
+         * ANIMATION SETTINGS
+         * =========================================
+         */
+
+        const animationOptions = {
+
+            duration: 200,
+
+            easing:
+                "cubic-bezier(0.22, 1, 0.36, 1)",
+
+            fill: "forwards"
+
+        };
+
+
+
+        /*
+         * =========================================
+         * HEIGHT SOURCE
+         * =========================================
+         */
+
+        function setHeightSource(el) {
+
+            stickyFilters.style.position =
+                (el === stickyFilters)
+                    ? "relative"
+                    : "absolute";
+
+            stickyNavigation.style.position =
+                (el === stickyNavigation)
+                    ? "relative"
+                    : "absolute";
+
+        }
+
+
+
+        /*
+         * =========================================
+         * SHOW FILTERS
+         * =========================================
+         */
+
+        function showFilters() {
+
+            if (animation) {
+
+                animation.cancel();
+
+                animation = null;
+
+            }
+
+
+            stickyOverlay.style.display =
+                "block";
+
+
+            setHeightSource(stickyFilters);
+
+
+            stickyFilters.style.visibility =
+                "visible";
+
+            stickyFilters.style.transform =
+                "translateY(0)";
+
+
+            stickyNavigation.style.transform =
+                "translateY(-100%)";
+
+
+            state = "filters";
+
+        }
+
+
+
+        /*
+         * =========================================
+         * SHOW NAVIGATION
+         * =========================================
+         *
+         * Image 1 slides DOWN over image 3.
+         */
+
+        function showNavigation() {
+
+            if (animation) {
+
+                animation.cancel();
+
+                animation = null;
+
+            }
+
+
+            stickyOverlay.style.display =
+                "block";
+
+
+            setHeightSource(stickyNavigation);
+
+
+            stickyFilters.style.transform =
+                "translateY(0)";
+
+
+            stickyNavigation.style.transform =
+                "translateY(-100%)";
+
+
+            animation =
+                stickyNavigation.animate(
+                    [
+                        {
+                            transform:
+                                "translateY(-100%)"
+                        },
+
+                        {
+                            transform:
+                                "translateY(0)"
+                        }
+                    ],
+                    animationOptions
+                );
+
+
+            animation.onfinish = () => {
+
+                animation = null;
+
+
+                stickyFilters.style.visibility =
+                    "hidden";
+
+            };
+
+        }
+
+
+
+        /*
+         * =========================================
+         * HIDE NAVIGATION
+         * =========================================
+         */
+
+        function hideNavigation() {
+
+            if (state === "navSlidingOut") {
+
+                return;
+
+            }
+
+
+            state = "navSlidingOut";
+
+
+            if (animation) {
+
+                animation.cancel();
+
+                animation = null;
+
+            }
+
+
+            setHeightSource(stickyFilters);
+
+
+            stickyFilters.style.visibility =
+                "visible";
+
+            stickyFilters.style.transform =
+                "translateY(0)";
+
+
+            animation =
+                stickyNavigation.animate(
+                    [
+                        {
+                            transform:
+                                "translateY(0)"
+                        },
+
+                        {
+                            transform:
+                                "translateY(-100%)"
+                        }
+                    ],
+                    animationOptions
+                );
+
+
+            animation.onfinish = () => {
+
+                animation = null;
+
+
+                stickyNavigation.style.transform =
+                    "translateY(-100%)";
+
+
+                state = "filters";
+
+            };
+
+        }
+
+
+
+        /*
+         * =========================================
+         * HIDE OVERLAY
+         * =========================================
+         */
+
+        function hideOverlay() {
+
+            if (animation) {
+
+                animation.cancel();
+
+                animation = null;
+
+            }
+
+
+            stickyOverlay.style.display =
+                "none";
+
+
+            setHeightSource(stickyFilters);
+
+
+            stickyFilters.style.visibility =
+                "visible";
+
+
+            stickyNavigation.style.transform =
+                "translateY(-100%)";
+
+
+            stickyFilters.style.transform =
+                "translateY(0)";
+
+
+            state = "normal";
+
+
+            /*
+             * Reset the 48px counter.
+             */
+
+            upwardDistance = 0;
+
+        }
+
+
+
+        /*
+         * =========================================
+         * SCROLL UPDATE
+         * =========================================
+         */
+
+        function update() {
+
+            const currentScrollY =
+                window.scrollY;
+
+
+            const delta =
+                currentScrollY - lastScrollY;
+
+
+            if (Math.abs(delta) < 1) {
+
+                lastScrollY =
+                    currentScrollY;
+
+                return;
+
+            }
+
+
+            /*
+             * Position of image 3 relative
+             * to the viewport.
+             */
+
+            const filtersTop =
+                filtersTrigger
+                    .getBoundingClientRect()
+                    .top;
+
+
+
+            /*
+             * =====================================
+             * SCROLLING DOWN
+             * =====================================
+             */
+
+            if (delta > 0) {
+
+
+                /*
+                 * Reset the upward counter whenever
+                 * the user changes direction.
+                 */
+
+                upwardDistance = 0;
+
+
+                /*
+                 * Navigation is showing:
+                 * slide it out and reveal image 3.
+                 */
+
+                if (state === "nav") {
+
+                    hideNavigation();
+
+                }
+
+
+                /*
+                 * Image 3 reaches the top:
+                 * make it sticky.
+                 */
+
+                else if (
+                    state === "normal" &&
+                    filtersTop <= 0
+                ) {
+
+                    showFilters();
+
+                }
+
+            }
+
+
+
+            /*
+             * =====================================
+             * SCROLLING UP
+             * =====================================
+             */
+
+            else {
+
+
+                /*
+                 * Only start counting upward movement
+                 * when image 3 is already sticky.
+                 */
+
+                if (
+                    state === "filters" &&
+                    currentScrollY > 0
+                ) {
+
+                    /*
+                     * Add this upward scroll movement
+                     * to the cumulative distance.
+                     */
+
+                    upwardDistance +=
+                        Math.abs(delta);
+
+
+                    /*
+                     * Only reveal nav after 48px.
+                     */
+
+                    if (
+                        upwardDistance >=
+                            NAV_REVEAL_DISTANCE
+                    ) {
+
+                        state = "nav";
+
+                        showNavigation();
+
+                    }
+
+                }
+
+
+                /*
+                 * The original image 1 (nav.png) has
+                 * returned to the viewport.
+                 */
+
+                if (
+                    (
+                        state === "nav" ||
+                        state === "navSlidingOut"
+                    ) &&
+                    navigation
+                        .getBoundingClientRect()
+                        .top >= 0
+                ) {
+
+                    hideOverlay();
+
+                }
+
+            }
+
+
+            lastScrollY =
+                currentScrollY;
+
+        }
+
+
+
+        /*
+         * =========================================
+         * SCROLL EVENT
+         * =========================================
+         */
+
+        let ticking = false;
+
+
+        window.addEventListener(
+            "scroll",
+            () => {
+
+                if (!ticking) {
+
+                    requestAnimationFrame(() => {
+
+                        update();
+
+                        ticking = false;
+
+                    });
+
+                    ticking = true;
+
+                }
+
+            },
+            {
+                passive: true
+            }
+        );
+
+
+
+        /*
+         * =========================================
+         * RESIZE
+         * ========================================= */
+
+        window.addEventListener(
+            "resize",
+            () => {
+
+                lastScrollY =
+                    window.scrollY;
+
+            }
+        );
+
+    </script>
+
+</body>
+
+</html>
